@@ -1,12 +1,74 @@
-#!/sbin/openrc-run
+#!/bin/sh
+#
+# gnome-session-init     Signal GNOME session initialization done
+#
+# chkconfig: 3 90 10
+# description: GNOME session init signal
+# processname: gnome-session-ctl
+# pidfile: /run/user/<uid>/gnome-session-init.pid
 
-# HACK: Need better openrc env handling
-DBUS_SESSION_BUS_ADDRESS="unix:path=${XDG_RUNTIME_DIR}/bus"
-export DBUS_SESSION_BUS_ADDRESS
+### BEGIN INIT INFO
+# Provides: gnome-session-init
+# Required-Start: dbus gnome-session-dbus
+# Required-Stop: dbus gnome-session-dbus
+# Default-Start: 3
+# Default-Stop: 0 1 6
+# Short-Description: GNOME Session Init
+### END INIT INFO
 
-supervisor=supervise-daemon
-description="Gnome session init signal"
-command="/usr/libexec/gnome-session-ctl"
-command_args="--signal-init"
-pidfile="${XDG_RUNTIME_DIR}/gnome-session-init.pid" #?
-# notify="socket:ready"
+GNOME_SESSION_CTL="/usr/libexec/gnome-session-ctl"
+PIDFILE="${XDG_RUNTIME_DIR}/gnome-session-init.pid"
+
+# Set DBUS session bus address
+export DBUS_SESSION_BUS_ADDRESS="unix:path=${XDG_RUNTIME_DIR}/bus"
+
+start() {
+    echo "Starting GNOME session init signal..." 
+
+    if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+        echo "Already running."
+        return 0
+    fi
+
+    "${GNOME_SESSION_CTL}" --signal-init &
+    echo $! > "$PIDFILE"
+    echo "Signal-init sent with PID $(cat "$PIDFILE")"
+}
+
+stop() {
+    echo "Stopping GNOME session init signal..."
+    if [ -f "$PIDFILE" ]; then
+        PID=$(cat "$PIDFILE")
+        if kill "$PID" 2>/dev/null; then
+            echo "Stopped."
+        fi
+        rm -f "$PIDFILE"
+    else
+        echo "Not running."
+    fi
+}
+
+status() {
+    if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+        echo "GNOME session init running with PID $(cat "$PIDFILE")"
+        return 0
+    else
+        echo "GNOME session init is not running."
+        return 3
+    fi
+}
+
+restart() {
+    stop
+    start
+}
+
+case "$1" in
+    start)   start ;;
+    stop)    stop ;;
+    restart) restart ;;
+    status)  status ;;
+    *)       echo "Usage: $0 {start|stop|restart|status}" ; exit 1 ;;
+esac
+
+exit 0
