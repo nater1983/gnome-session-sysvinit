@@ -1,20 +1,64 @@
-#!/sbin/openrc-run
+#!/bin/sh
+#
+# gnome-shell-wayland   GNOME Shell (Wayland)
+#
+# chkconfig: 3 90 10
+# description: GNOME Shell on Wayland
+# pidfile: /run/user/<uid>/gnome-shell-wayland.pid
 
-XDG_CURRENT_DESKTOP=GNOME
-export XDG_CURRENT_DESKTOP
-XDG_SESSION_TYPE=wayland
-export XDG_SESSION_TYPE
-# HACK: Need better openrc env handling
-DBUS_SESSION_BUS_ADDRESS="unix:path=${XDG_RUNTIME_DIR}/bus"
-export DBUS_SESSION_BUS_ADDRESS
-XDG_DATA_DIRS="$XDG_DATA_DIRS:/home/$USER/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share"
-export XDG_DATA_DIRS
-output_logger="logger"
-error_logger="logger"
+### BEGIN INIT INFO
+# Provides: gnome-shell-wayland
+# Required-Start: dbus gnome-settings-daemon-wayland gnome-session-dbus-wayland gnome-session-monitor gnome-session-init
+# Required-Stop:
+# Default-Start: 3
+# Default-Stop: 0 1 6
+# Short-Description: GNOME Shell (Wayland)
+### END INIT INFO
 
-supervisor=supervise-daemon
-description="GNOME Shell (wayland)"
-command="/usr/bin/gnome-shell"
-command_args="--wayland"
-#command_background="true"
-pidfile="${XDG_RUNTIME_DIR}/gnome-shell-wayland.pid"
+PIDFILE="${XDG_RUNTIME_DIR}/gnome-shell-wayland.pid"
+
+start() {
+    echo "Starting GNOME Shell (Wayland)..."
+
+    if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+        echo "Already running."
+        return 0
+    fi
+
+    export XDG_CURRENT_DESKTOP=GNOME
+    export XDG_SESSION_TYPE=wayland
+    export DBUS_SESSION_BUS_ADDRESS="unix:path=${XDG_RUNTIME_DIR}/bus"
+    export XDG_DATA_DIRS="$XDG_DATA_DIRS:/home/$USER/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share"
+
+    /usr/bin/gnome-shell --wayland &
+    echo $! > "$PIDFILE"
+    echo "GNOME Shell (Wayland) started with PID $(cat $PIDFILE)"
+}
+
+stop() {
+    echo "Stopping GNOME Shell (Wayland)..."
+    if [ -f "$PIDFILE" ]; then
+        kill "$(cat "$PIDFILE")" 2>/dev/null
+        rm -f "$PIDFILE"
+    fi
+}
+
+status() {
+    if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+        echo "GNOME Shell (Wayland) running with PID $(cat "$PIDFILE")"
+        return 0
+    else
+        echo "GNOME Shell (Wayland) is not running."
+        return 3
+    fi
+}
+
+case "$1" in
+    start)   start ;;
+    stop)    stop ;;
+    restart) stop; start ;;
+    status)  status ;;
+    *)       echo "Usage: $0 {start|stop|restart|status}" ; exit 1 ;;
+esac
+
+exit 0
