@@ -2142,7 +2142,6 @@ idle_timeout_get_mapping (GValue *value,
 static void
 gsm_manager_init (GsmManager *manager)
 {
-        rc_set_user();
         manager->settings = g_settings_new (GSM_MANAGER_SCHEMA);
         manager->session_settings = g_settings_new (SESSION_SCHEMA);
         manager->lockdown_settings = g_settings_new (LOCKDOWN_SCHEMA);
