@@ -1,25 +1,69 @@
-#!/sbin/openrc-run
+#!/bin/sh
+#
+# gnome-settings-daemon-x11   GNOME Settings Daemon (X11)
+#
+# chkconfig: 3 90 10
+# description: GNOME Settings Daemon (X11)
+# pidfile: /run/user/<uid>/gnome-settings-daemon-x11.pid
 
-supervisor=supervise-daemon
-description="GNOME Settings Daemon (x11)"
-#pidfile="/tmp/gnome-shell.pid"
+### BEGIN INIT INFO
+# Provides: gnome-settings-daemon-x11
+# Required-Start: dbus
+# Required-Stop:
+# Default-Start: 3
+# Default-Stop: 0 1 6
+# Short-Description: GNOME Settings Daemon (X11)
+### END INIT INFO
 
-depend() {
-	need gsd-a11y-settings       
-	need gsd-color               
-	need gsd-datetime
-	need gsd-housekeeping        
-	need gsd-keyboard            
-	need gsd-media-keys          
-	need gsd-power               
-	need gsd-print-notifications 
-	need gsd-rfkill        
-	need gsd-screensaver-proxy   
-	need gsd-sharing             
-#	need gsd-smartcard           
-	need gsd-sound               
-	need gsd-usb-protection      
-#	need gsd-wacom               
-#	need gsd-wwan                
-	need gsd-xsettings           
+PIDFILE="${XDG_RUNTIME_DIR}/gnome-settings-daemon-x11.pid"
+GSDS="gsd-a11y-settings gsd-color gsd-datetime gsd-housekeeping gsd-keyboard gsd-media-keys gsd-power gsd-print-notifications gsd-rfkill gsd-screensaver-proxy gsd-sharing gsd-sound gsd-usb-protection gsd-xsettings"
+
+start() {
+    echo "Starting GNOME Settings Daemon (X11)..."
+
+    if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+        echo "Already running."
+        return 0
+    fi
+
+    for gsd in $GSDS; do
+        if command -v "$gsd" >/dev/null 2>&1; then
+            "$gsd" &
+        fi
+    done
+
+    # Record main PID (for simplicity, first gsd)
+    first_gsd=$(echo $GSDS | awk '{print $1}')
+    PID=$(pgrep -n "$first_gsd")
+    echo "$PID" > "$PIDFILE"
+    echo "GNOME Settings Daemon (X11) started with PID $PID"
 }
+
+stop() {
+    echo "Stopping GNOME Settings Daemon (X11)..."
+    for gsd in $(echo $GSDS | tac); do
+        pkill -x "$gsd" 2>/dev/null
+    done
+
+    [ -f "$PIDFILE" ] && rm -f "$PIDFILE"
+}
+
+status() {
+    if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+        echo "GNOME Settings Daemon (X11) running with PID $(cat "$PIDFILE")"
+        return 0
+    else
+        echo "GNOME Settings Daemon (X11) is not running."
+        return 3
+    fi
+}
+
+case "$1" in
+    start)   start ;;
+    stop)    stop ;;
+    restart) stop; start ;;
+    status)  status ;;
+    *)       echo "Usage: $0 {start|stop|restart|status}" ; exit 1 ;;
+esac
+
+exit 0
