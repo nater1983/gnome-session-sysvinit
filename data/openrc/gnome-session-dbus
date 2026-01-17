@@ -1,10 +1,80 @@
-#!/sbin/openrc-run
+#!/bin/sh
+#
+# gnome-session-dbus     Start the GNOME session D-Bus daemon
+#
+# chkconfig: 3 90 10
+# description: GNOME session D-Bus daemon
+# processname: gnome-session-service
+# pidfile: /run/user/<uid>/gnome-session-dbus-<session>.pid
 
-dbus_session="${RC_SVCNAME#*.}"
+### BEGIN INIT INFO
+# Provides: gnome-session-dbus
+# Required-Start: $local_fs $network dbus
+# Required-Stop: $local_fs $network dbus
+# Default-Start: 3
+# Default-Stop: 0 1 6
+# Short-Description: GNOME session D-Bus daemon
+### END INIT INFO
 
-# supervisor=supervise-daemon
-description="GNOME session dbus daemon"
-command="/usr/libexec/gnome-session-service"
-command_args='--session="${dbus_session}"'
-command_background="true"
-pidfile="${XDG_RUNTIME_DIR}/gnome-session-dbus-${dbus_session}.pid"
+# Path to the executable
+GNOME_SESSION_SERVICE="/usr/libexec/gnome-session-service"
+
+# Determine the session name from the script name
+DBUS_SESSION="$(basename "$0" | cut -d'.' -f2)"
+
+# Runtime PID file
+PIDFILE="${XDG_RUNTIME_DIR}/gnome-session-dbus-${DBUS_SESSION}.pid"
+
+start() {
+    echo "Starting GNOME session D-Bus for session '${DBUS_SESSION}'..."
+    if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+        echo "Already running."
+        return 0
+    fi
+
+    # Run the service in the background
+    "${GNOME_SESSION_SERVICE}" --session="${DBUS_SESSION}" &
+    echo $! > "$PIDFILE"
+    echo "Started with PID $(cat "$PIDFILE")"
+}
+
+stop() {
+    echo "Stopping GNOME session D-Bus for session '${DBUS_SESSION}'..."
+    if [ -f "$PIDFILE" ]; then
+        PID=$(cat "$PIDFILE")
+        if kill "$PID" 2>/dev/null; then
+            echo "Stopped."
+            rm -f "$PIDFILE"
+        else
+            echo "Failed to stop or already stopped."
+            rm -f "$PIDFILE"
+        fi
+    else
+        echo "Not running (no PID file)."
+    fi
+}
+
+status() {
+    if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+        echo "GNOME session D-Bus is running with PID $(cat "$PIDFILE")."
+        return 0
+    else
+        echo "GNOME session D-Bus is not running."
+        return 3
+    fi
+}
+
+restart() {
+    stop
+    start
+}
+
+case "$1" in
+    start)   start ;;
+    stop)    stop ;;
+    restart) restart ;;
+    status)  status ;;
+    *)       echo "Usage: $0 {start|stop|restart|status}" ; exit 1 ;;
+esac
+
+exit 0
