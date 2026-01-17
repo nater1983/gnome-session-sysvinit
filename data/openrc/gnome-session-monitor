@@ -1,8 +1,72 @@
-#!/sbin/openrc-run
+#!/bin/sh
+#
+# gnome-session-monitor   Monitor GNOME session for clean shutdown
+#
+# chkconfig: 3 90 10
+# description: GNOME session monitor
+# processname: gnome-session-ctl
+# pidfile: /run/user/<uid>/gnome-session-monitor.pid
 
-# supervisor=supervise-daemon
-description="Gnome session monitor"
-command="/usr/libexec/gnome-session-ctl"
-command_args="--monitor"
-command_background="true"
-pidfile="${XDG_RUNTIME_DIR}/gnome-session-monitor.pid" #?
+### BEGIN INIT INFO
+# Provides: gnome-session-monitor
+# Required-Start: dbus gnome-session-dbus gnome-session-init
+# Required-Stop: dbus gnome-session-dbus gnome-session-init
+# Default-Start: 3
+# Default-Stop: 0 1 6
+# Short-Description: GNOME Session Monitor
+### END INIT INFO
+
+GNOME_SESSION_CTL="/usr/libexec/gnome-session-ctl"
+PIDFILE="${XDG_RUNTIME_DIR}/gnome-session-monitor.pid"
+
+start() {
+    echo "Starting GNOME session monitor..."
+
+    if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+        echo "Already running."
+        return 0
+    fi
+
+    # Run monitor in the background
+    "${GNOME_SESSION_CTL}" --monitor &
+    echo $! > "$PIDFILE"
+    echo "GNOME session monitor started with PID $(cat "$PIDFILE")"
+}
+
+stop() {
+    echo "Stopping GNOME session monitor..."
+    if [ -f "$PIDFILE" ]; then
+        PID=$(cat "$PIDFILE")
+        if kill "$PID" 2>/dev/null; then
+            echo "Stopped."
+        fi
+        rm -f "$PIDFILE"
+    else
+        echo "Not running."
+    fi
+}
+
+status() {
+    if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+        echo "GNOME session monitor running with PID $(cat "$PIDFILE")"
+        return 0
+    else
+        echo "GNOME session monitor is not running."
+        return 3
+    fi
+}
+
+restart() {
+    stop
+    start
+}
+
+case "$1" in
+    start)   start ;;
+    stop)    stop ;;
+    restart) restart ;;
+    status)  status ;;
+    *)       echo "Usage: $0 {start|stop|restart|status}" ; exit 1 ;;
+esac
+
+exit 0
