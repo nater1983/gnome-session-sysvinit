@@ -1,17 +1,87 @@
-#!/sbin/openrc-run
+#!/bin/sh
+#
+# gnome-session-base    GNOME Session Base
+#
+# chkconfig: 3 90 10
+# description: GNOME Session Base
+# processname: gnome-session
+# pidfile: /run/user/<uid>/gnome-session-base-<session>.pid
 
-supervisor=supervise-daemon
-description="GNOME Session (base)"
-output_logger="logger"
-error_logger="logger"
+### BEGIN INIT INFO
+# Provides: gnome-session-base
+# Required-Start: dbus gnome-settings-daemon gnome-session-dbus gnome-session-monitor gnome-session-init
+# Required-Stop: dbus gnome-settings-daemon gnome-session-dbus gnome-session-monitor gnome-session-init
+# Default-Start: 3
+# Default-Stop: 0 1 6
+# Short-Description: GNOME Session Base
+### END INIT INFO
 
-gnome_session="${RC_SVCNAME#*.}"
+# Name of the session (parsed from script name)
+GNOME_SESSION="$(basename "$0" | cut -d'.' -f2)"
 
-depend() {
-	need dbus
-	need gnome-settings-daemon
-	need "gnome-session-dbus.${gnome_session}"
-	need gnome-session-monitor
-	need gnome-session-init
+# PID file
+PIDFILE="${XDG_RUNTIME_DIR}/gnome-session-base-${GNOME_SESSION}.pid"
+
+# Command to run the main GNOME session
+GNOME_SESSION_CMD="/usr/libexec/gnome-session"
+
+start() {
+    echo "Starting GNOME Session Base for session '${GNOME_SESSION}'..." | logger
+
+    # Check if already running
+    if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+        echo "Already running." | logger
+        return 0
+    fi
+
+    # Start dependencies manually (approximation of OpenRC `need`)
+    for svc in dbus gnome-settings-daemon "gnome-session-dbus.${GNOME_SESSION}" gnome-session-monitor gnome-session-init; do
+        if [ -x "/etc/init.d/$svc" ]; then
+            echo "Starting dependency $svc..." | logger
+            /etc/init.d/$svc start
+        fi
+    done
+
+    # Start the GNOME session
+    "${GNOME_SESSION_CMD}" --session="${GNOME_SESSION}" &
+    echo $! > "$PIDFILE"
+    echo "Started GNOME Session Base with PID $(cat "$PIDFILE")" | logger
 }
 
+stop() {
+    echo "Stopping GNOME Session Base for session '${GNOME_SESSION}'..." | logger
+    if [ -f "$PIDFILE" ]; then
+        PID=$(cat "$PIDFILE")
+        if kill "$PID" 2>/dev/null; then
+            echo "Stopped." | logger
+        fi
+        rm -f "$PIDFILE"
+    else
+        echo "Not running." | logger
+    fi
+}
+
+status() {
+    if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+        echo "GNOME Session Base running with PID $(cat "$PIDFILE")" | logger
+        return 0
+    else
+        echo "GNOME Session Base is not running." | logger
+        return 3
+    fi
+}
+
+restart() {
+    stop
+    start
+}
+
+case "$1" in
+    start)   start ;;
+    stop)    stop ;;
+    restart) restart ;;
+    status)  status ;;
+    *)       echo "Usage: $0 {start|stop|restart|status}" ; exit 1 ;;
+esac
+
+exit 0
