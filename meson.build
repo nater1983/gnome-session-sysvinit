@@ -138,7 +138,6 @@ summary_options = {
  'Use *_DISABLE_DEPRECATED': get_option('deprecation_flags'),
  'Build Docbook': get_option('docbook'),
  'Build manpages': get_option('man'),
- 'Systemd Units Directory': systemd_userunitdir,
 }
 
 summary_dirs = {
