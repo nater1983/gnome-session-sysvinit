@@ -128,21 +128,14 @@ if is_variable('systemd_userunitdir')
   )
 else
   openrc_target = [
-    # 'openrc/gnome-session',
+    'openrc/gnome-session',
+    'openrc/gnome-session-tty',
     'openrc/gnome-session-wayland',
-    'openrc/gnome-session-x11',
-    'openrc/gnome-shell-wayland',
-    'openrc/gnome-shell-x11',
-    'openrc/gnome-shell-wayland.gnome-login',
-    'openrc/gnome-shell-x11.gnome-login',
-    'openrc/gnome-session-init',
-    'openrc/gnome-session-shutdown',
-    'openrc/gnome-session-monitor',
-    'openrc/gnome-settings-daemon-wayland',
-    'openrc/gnome-settings-daemon-x11',
+    'openrc/gnome-shell',
+    'openrc/gnome-shell.gnome-login',
+    'openrc/gnome-settings-daemon',
     'openrc/gnome-session-dbus',
     'openrc/gsd',
-    'openrc/gsd-xsettings',
   ]
   # if have_x11
   #   openrc_target += [
@@ -168,7 +161,7 @@ else
     'gsd-usb-protection',
     'gsd-wacom',
     'gsd-wwan',
-#    'gsd-xsettings',
+    'gsd-xsettings',
   ]
 
   # Install the primary services
@@ -191,20 +184,35 @@ else
   gnome_sessions = [ 'gnome', 'gnome-login', 'gnome-initial-setup' ]
   targets = [
     'gnome-session-wayland',
-    'gnome-session-x11',
+    'gnome-session',
     'gnome-session-dbus',
   ]
   
+  # Since we can't do symlinks yet, we have to create copies of the symlinked services
+  mapped_target = []
+  mapped_target_rename = []
+  
   foreach session : gnome_sessions
     foreach target : targets
-      install_symlink(
-        target + '.' + session,
-        install_dir: '/etc/user/init.d',
-        pointing_to: target
-      )
+      mapped_target += 'openrc/' + target
+      mapped_target_rename += target + '.' + session
     endforeach
+    # HACK done above, it seems like symlinks break stuff with openrc
+    #foreach target : targets
+    #  install_symlink(
+    #    target + '--' + session,
+    #    install_dir: '/etc/user/init.d',
+    #    pointing_to: target
+    #  )
+    #endforeach
   endforeach
   
+  install_data(
+    mapped_target,
+    install_dir: '/etc/user/init.d',
+    rename: mapped_target_rename
+  )
+
   # Install resource limits that are applied to GNOME-launched apps
 
   # install_data(
