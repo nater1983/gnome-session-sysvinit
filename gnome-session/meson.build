@@ -26,7 +26,7 @@ sources = files(
 if use_openrc
   sources += files('leader-openrc.c')
 else
-  sources += files('leader-systemd.c')
+  sources += files('leader-sysvinit.c')
 endif
 
 executable(
