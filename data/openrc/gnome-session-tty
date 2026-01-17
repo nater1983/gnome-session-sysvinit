@@ -1,0 +1,68 @@
+#!/bin/sh
+#
+# gnome-session-wayland   SysVinit script
+#
+# chkconfig: 3 90 10
+# description: GNOME Session (Wayland)
+# pidfile: /run/user/<uid>/gnome-session-wayland.pid
+
+### BEGIN INIT INFO
+# Provides: gnome-session-wayland
+# Required-Start: gnome-session
+# Required-Stop:
+# Default-Start: 3
+# Default-Stop: 0 1 6
+# Short-Description: GNOME Session (Wayland)
+### END INIT INFO
+
+DAEMON="/usr/libexec/gnome-session"
+PIDFILE="${XDG_RUNTIME_DIR}/gnome-session-wayland.pid"
+ARGS="--wayland"
+
+start() {
+    echo "Starting GNOME Session (Wayland)..."
+    if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+        echo "Already running with PID $(cat "$PIDFILE")"
+        return 0
+    fi
+
+    "$DAEMON" $ARGS &
+    echo $! > "$PIDFILE"
+    echo "Started with PID $(cat "$PIDFILE")"
+}
+
+stop() {
+    echo "Stopping GNOME Session (Wayland)..."
+    if [ -f "$PIDFILE" ]; then
+        kill "$(cat "$PIDFILE")" 2>/dev/null
+        rm -f "$PIDFILE"
+        echo "Stopped"
+    else
+        echo "Not running"
+    fi
+}
+
+status() {
+    if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+        echo "Running with PID $(cat "$PIDFILE")"
+        return 0
+    else
+        echo "Not running"
+        return 3
+    fi
+}
+
+restart() {
+    stop
+    start
+}
+
+case "$1" in
+    start)   start ;;
+    stop)    stop ;;
+    restart) restart ;;
+    status)  status ;;
+    *)       echo "Usage: $0 {start|stop|restart|status}" ; exit 1 ;;
+esac
+
+exit 0
