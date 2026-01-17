@@ -17,13 +17,6 @@ i18n.merge_file(
 
 # Next, let's install the necessary systemd scaffolding
 
-install_data(
-    'gnome.session.conf',
-    install_dir: systemd_userunitdir / 'gnome-session@gnome.target.d',
-)
-
-# Next, let's install the necessary systemd scaffolding
-
 if is_variable('systemd_userunitdir')
   install_data(
       'gnome.session.conf',
