@@ -1,18 +1,63 @@
-#!/sbin/openrc-run
+#!/bin/sh
+#
+# gnome-shell-gdm   GNOME Shell (Wayland login)
+#
+# chkconfig: 3 90 10
+# description: GNOME Shell login (Wayland)
+# pidfile: /run/user/<uid>/gnome-shell-gdm.pid
 
-XDG_CURRENT_DESKTOP=GNOME
-export XDG_CURRENT_DESKTOP
-XDG_SESSION_TYPE=wayland
-export XDG_SESSION_TYPE
-# HACK: Need better openrc env handling
-DBUS_SESSION_BUS_ADDRESS="unix:path=${XDG_RUNTIME_DIR}/bus"
-export DBUS_SESSION_BUS_ADDRESS
-output_logger="logger"
-error_logger="logger"
+### BEGIN INIT INFO
+# Provides: gnome-shell-gdm
+# Required-Start: dbus gnome-settings-daemon-wayland gnome-session-dbus-wayland gnome-session-monitor gnome-session-init
+# Required-Stop:
+# Default-Start: 3
+# Default-Stop: 0 1 6
+# Short-Description: GNOME Shell login (Wayland)
+### END INIT INFO
 
-supervisor=supervise-daemon
-description="GNOME Shell (login)"
-command="/usr/bin/gnome-shell"
-command_args="--wayland --mode=gdm"
-# command_background="true"
-pidfile="${XDG_RUNTIME_DIR}/gnome-shell-gdm.pid"
+PIDFILE="${XDG_RUNTIME_DIR}/gnome-shell-gdm.pid"
+
+start() {
+    echo "Starting GNOME Shell (Wayland login)..."
+
+    if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+        echo "Already running."
+        return 0
+    fi
+
+    export XDG_CURRENT_DESKTOP=GNOME
+    export XDG_SESSION_TYPE=wayland
+    export DBUS_SESSION_BUS_ADDRESS="unix:path=${XDG_RUNTIME_DIR}/bus"
+
+    /usr/bin/gnome-shell --wayland --mode=gdm &
+    echo $! > "$PIDFILE"
+    echo "GNOME Shell (Wayland login) started with PID $(cat $PIDFILE)"
+}
+
+stop() {
+    echo "Stopping GNOME Shell (Wayland login)..."
+    if [ -f "$PIDFILE" ]; then
+        kill "$(cat "$PIDFILE")" 2>/dev/null
+        rm -f "$PIDFILE"
+    fi
+}
+
+status() {
+    if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+        echo "GNOME Shell (Wayland login) running with PID $(cat "$PIDFILE")"
+        return 0
+    else
+        echo "GNOME Shell (Wayland login) is not running."
+        return 3
+    fi
+}
+
+case "$1" in
+    start)   start ;;
+    stop)    stop ;;
+    restart) stop; start ;;
+    status)  status ;;
+    *)       echo "Usage: $0 {start|stop|restart|status}" ; exit 1 ;;
+esac
+
+exit 0
