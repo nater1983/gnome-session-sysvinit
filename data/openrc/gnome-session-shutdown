@@ -1,7 +1,71 @@
-#!/sbin/openrc-run
+#!/bin/sh
+#
+# gnome-session-shutdown   GNOME session shutdown
+#
+# chkconfig: 0 10 90
+# description: GNOME session shutdown
+# processname: gnome-session-ctl
+# pidfile: /run/user/<uid>/gnome-session-shutdown.pid
 
-# supervisor=supervise-daemon
-description="Gnome session shutdown"
-command="/usr/libexec/gnome-session-ctl"
-command_args="--shutdown"
-pidfile="${XDG_RUNTIME_DIR}/gnome-session-shutdown.pid" #?
+### BEGIN INIT INFO
+# Provides: gnome-session-shutdown
+# Required-Start: gnome-session-monitor gnome-session-init
+# Required-Stop: gnome-session-monitor gnome-session-init
+# Default-Start: 0 6
+# Default-Stop: 1 2 3 4 5
+# Short-Description: GNOME Session Shutdown
+### END INIT INFO
+
+GNOME_SESSION_CTL="/usr/libexec/gnome-session-ctl"
+PIDFILE="${XDG_RUNTIME_DIR}/gnome-session-shutdown.pid"
+
+start() {
+    echo "Starting GNOME session shutdown..."
+
+    if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+        echo "Already running."
+        return 0
+    fi
+
+    "${GNOME_SESSION_CTL}" --shutdown &
+    echo $! > "$PIDFILE"
+    echo "GNOME session shutdown triggered with PID $(cat "$PIDFILE")"
+}
+
+stop() {
+    echo "Stopping GNOME session shutdown..."
+    if [ -f "$PIDFILE" ]; then
+        PID=$(cat "$PIDFILE")
+        if kill "$PID" 2>/dev/null; then
+            echo "Stopped."
+        fi
+        rm -f "$PIDFILE"
+    else
+        echo "Not running."
+    fi
+}
+
+status() {
+    if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+        echo "GNOME session shutdown running with PID $(cat "$PIDFILE")"
+        return 0
+    else
+        echo "GNOME session shutdown is not running."
+        return 3
+    fi
+}
+
+restart() {
+    stop
+    start
+}
+
+case "$1" in
+    start)   start ;;
+    stop)    stop ;;
+    restart) restart ;;
+    status)  status ;;
+    *)       echo "Usage: $0 {start|stop|restart|status}" ; exit 1 ;;
+esac
+
+exit 0
