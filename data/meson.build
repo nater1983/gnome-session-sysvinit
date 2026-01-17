@@ -1,64 +1,26 @@
-# Install the .desktop files that tell GDM about the GNOME session
+# Install the .desktop file that tells GDM about the GNOME session
 
-wayland_desktops = [
-  'gnome',
-  'gnome-wayland',
-]
-foreach name : wayland_desktops
-  desktop = name + '.desktop'
-  desktop_in = configure_file(
-    input: desktop + '.in.in',
-    output: desktop + '.in',
+i18n.merge_file(
+  type: 'desktop',
+  input: configure_file(
+    input: 'gnome.desktop.in.in',
+    output: '@BASENAME@',
     configuration: {
       'bindir': session_bindir,
-      'canrunheadless': 'true',
     },
-  )
-  desktop_target = i18n.merge_file(
-    type: 'desktop',
-    input: desktop_in,
-    output: desktop,
-    po_dir: po_dir,
-    install: true,
-    install_dir: session_datadir / 'wayland-sessions',
-  )
-endforeach
+  ),
+  output: '@BASENAME@',
+  po_dir: po_dir,
+  install: true,
+  install_dir: session_datadir / 'wayland-sessions',
+)
 
-if have_x11
-  xorg_desktops = [
-    'gnome',
-    'gnome-xorg',
-  ]
-  foreach name : xorg_desktops
-    desktop = name + '.desktop'
+# Next, let's install the necessary systemd scaffolding
 
-    # 'gnome' target name is already used for wayland desktop,
-    # use 'gnome-copy' and on meson_post_install
-    # modify its name to 'gnome' again
-    if name == 'gnome'
-      desktop_out = 'gnome-copy.desktop'
-    else
-      desktop_out = desktop
-    endif
-
-    desktop_in = configure_file(
-      input: desktop + '.in.in',
-      output: desktop_out + '.in',
-      configuration: {
-        'bindir': session_bindir,
-        'canrunheadless': 'false',
-      },
-    )
-    desktop_target = i18n.merge_file(
-      type: 'desktop',
-      input: desktop_in,
-      output: desktop_out,
-      po_dir: po_dir,
-      install: true,
-      install_dir: session_datadir / 'xsessions',
-    )
-  endforeach
-endif
+install_data(
+    'gnome.session.conf',
+    install_dir: systemd_userunitdir / 'gnome-session@gnome.target.d',
+)
 
 # Next, let's install the necessary systemd scaffolding
 
