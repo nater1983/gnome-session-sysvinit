@@ -1,13 +1,12 @@
 project(
   'gnome-session', 'c',
-  version: '49.0',
+  version: '50.alpha',
   license: 'GPL2+',
   default_options: 'buildtype=debugoptimized',
   meson_version: '>= 0.60.0'
 )
 
 session_version = meson.project_version()
-session_api_name = '@0@-@1@'.format(meson.project_name(), session_version.split('.')[0])
 
 session_prefix = get_option('prefix')
 session_bindir = join_paths(session_prefix, get_option('bindir'))
@@ -20,8 +19,6 @@ session_pkgdatadir = join_paths(session_datadir, meson.project_name())
 
 cc = meson.get_compiler('c')
 
-have_x11 = get_option('x11')
-
 config_h = configuration_data()
 
 # defines
@@ -31,7 +28,7 @@ set_defines = [
   ['PACKAGE_VERSION', session_version],
   ['VERSION', session_version],
   # i18n
-  ['GETTEXT_PACKAGE', session_api_name]
+  ['GETTEXT_PACKAGE', meson.project_name()]
 ]
 
 foreach define: set_defines
@@ -82,15 +79,12 @@ add_project_arguments(common_flags + compiler_flags, language: 'c')
 glib_req_version = '>= 2.82.0'
 
 gio_dep = dependency('gio-2.0', version: glib_req_version)
-gtk_dep = dependency('gtk4')
 
 session_deps = [
   gio_dep,
   dependency('glib-2.0', version: glib_req_version),
   dependency('gnome-desktop-4'),
-  dependency('json-glib-1.0', version: '>= 0.10')
 ]
-
 libsystemd_dep = dependency('libsystemd', version: '>= 209', required: false)
 if libsystemd_dep.found()
   config_h.set('SYSTEMD_STRICT_ENV',
@@ -107,11 +101,6 @@ else
   ]
 endif
 
-libopenrc_dep = dependency('openrc', required: false)
-if libopenrc_dep.found()
-  session_bin_deps += libopenrc_dep
-endif
-
 if libsystemd_dep.found()
   systemd_userunitdir = get_option('systemduserunitdir')
   if systemd_userunitdir == ''
@@ -120,10 +109,6 @@ if libsystemd_dep.found()
                                                    pkgconfig_define: ['prefix', session_prefix])
   endif
 endif
-
-use_openrc = not libsystemd_dep.found() and libopenrc_dep.found()
-
-config_h.set('USE_OPENRC', use_openrc)
 
 configure_file(
   output: 'config.h',
@@ -144,13 +129,6 @@ subdir('data')
 subdir('doc')
 subdir('po')
 
-if have_x11
-  meson.add_install_script(
-    'meson_post_install.py',
-    session_datadir
-  )
-endif
-
 gnome.post_install(
   glib_compile_schemas: true,
 )
@@ -160,6 +138,7 @@ summary_options = {
  'Use *_DISABLE_DEPRECATED': get_option('deprecation_flags'),
  'Build Docbook': get_option('docbook'),
  'Build manpages': get_option('man'),
+ 'Systemd Units Directory': systemd_userunitdir,
 }
 
 summary_dirs = {
@@ -173,11 +152,5 @@ summary_dirs = {
   'pkgdatadir': session_pkgdatadir,
 }
 
-summary_vars = {
-  'Use OpenRC': use_openrc,
-  'Have X11': have_x11,
-}
-
 summary(summary_dirs, section: 'Directories')
 summary(summary_options, section: 'Build Options')
-summary(summary_vars, section: 'Build-time Variables')
