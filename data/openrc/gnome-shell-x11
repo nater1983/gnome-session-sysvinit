@@ -1,20 +1,65 @@
-#!/sbin/openrc-run
+#!/bin/sh
+#
+# gnome-shell-x11   GNOME Shell (X11)
+#
+# chkconfig: 3 90 10
+# description: GNOME Shell X11 session
+# pidfile: /run/user/<uid>/gnome-shell-x11.pid
 
-XDG_CURRENT_DESKTOP=GNOME
-export XDG_CURRENT_DESKTOP
-XDG_SESSION_TYPE=x11
-export XDG_SESSION_TYPE
-# HACK: Need better openrc env handling
-DBUS_SESSION_BUS_ADDRESS="unix:path=${XDG_RUNTIME_DIR}/bus"
-export DBUS_SESSION_BUS_ADDRESS
-XDG_DATA_DIRS="$XDG_DATA_DIRS:/home/$USER/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share"
-export XDG_DATA_DIRS
-DISPLAY=:2
-export DISPLAY
+### BEGIN INIT INFO
+# Provides: gnome-shell-x11
+# Required-Start: dbus gnome-settings-daemon-x11 gnome-session-dbus-x11 gnome-session-monitor gnome-session-init
+# Required-Stop:
+# Default-Start: 3
+# Default-Stop: 0 1 6
+# Short-Description: GNOME Shell (X11)
+### END INIT INFO
 
-supervisor=supervise-daemon
-description="GNOME Shell (x11)"
-command="/usr/bin/gnome-shell"
-command_args="--x11"
-#command_background="true"
-pidfile="${XDG_RUNTIME_DIR}/gnome-shell-x11.pid"
+PIDFILE="${XDG_RUNTIME_DIR}/gnome-shell-x11.pid"
+
+start() {
+    echo "Starting GNOME Shell (X11)..."
+
+    if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+        echo "Already running."
+        return 0
+    fi
+
+    export XDG_CURRENT_DESKTOP=GNOME
+    export XDG_SESSION_TYPE=x11
+    export DBUS_SESSION_BUS_ADDRESS="unix:path=${XDG_RUNTIME_DIR}/bus"
+    export XDG_DATA_DIRS="$XDG_DATA_DIRS:/home/$USER/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share"
+    export DISPLAY=:2
+
+    /usr/bin/gnome-shell --x11 &
+    echo $! > "$PIDFILE"
+    echo "GNOME Shell (X11) started with PID $(cat $PIDFILE)"
+}
+
+stop() {
+    echo "Stopping GNOME Shell (X11)..."
+    if [ -f "$PIDFILE" ]; then
+        kill "$(cat "$PIDFILE")" 2>/dev/null
+        rm -f "$PIDFILE"
+    fi
+}
+
+status() {
+    if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+        echo "GNOME Shell (X11) running with PID $(cat "$PIDFILE")"
+        return 0
+    else
+        echo "GNOME Shell (X11) is not running."
+        return 3
+    fi
+}
+
+case "$1" in
+    start)   start ;;
+    stop)    stop ;;
+    restart) stop; start ;;
+    status)  status ;;
+    *)       echo "Usage: $0 {start|stop|restart|status}" ; exit 1 ;;
+esac
+
+exit 0
