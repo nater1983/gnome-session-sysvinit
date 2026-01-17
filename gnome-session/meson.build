@@ -20,14 +20,9 @@ executable(
 )
 
 sources = files(
-    'gsm-util.c'
+    'gsm-util.c',
+    'leader-sysvinit.c',
 )
-
-if use_openrc
-  sources += files('leader-openrc.c')
-else
-  sources += files('leader-sysvinit.c')
-endif
 
 executable(
   meson.project_name() + '-init-worker',
@@ -46,7 +41,6 @@ sources = files(
   'gsm-manager.c',
   'gsm-presence.c',
   'gsm-session-fill.c',
-  'gsm-session-save.c',
   'gsm-shell.c',
   'gsm-store.c',
   'gsm-system.c',
