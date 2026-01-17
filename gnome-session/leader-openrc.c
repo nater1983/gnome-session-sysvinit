@@ -24,7 +24,9 @@
 #include <glib-unix.h>
 #include <gio/gio.h>
 #include <sys/syslog.h>
-#include <rc.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <errno.h>
 
 typedef struct {
         GDBusConnection *session_bus;
@@ -38,7 +40,8 @@ leader_clear (Leader *ctx)
 {
         g_clear_object (&ctx->session_bus);
         g_clear_pointer (&ctx->loop, g_main_loop_unref);
-        g_close (ctx->fifo_fd, NULL);
+        if (ctx->fifo_fd >= 0)
+            close (ctx->fifo_fd);
         g_clear_object (&ctx->awaiting_shutdown);
 }
 
@@ -57,35 +60,41 @@ async_run_cmd (gchar **argv, GError **error)
                              error);
 }
 
+/* -------------------- SysVinit-compatible unit handling -------------------- */
+
 static gboolean
-openrc_unit_action (const char       *unit,
-                    const char       *action,
-                    GError          **error)
+sysvinit_unit_action (const char *unit,
+                      const char *action,
+                      GError    **error)
 {
-        g_autofree char *service = rc_service_resolve(unit);
-        if (!service)
-        {
-                g_debug ("Couldn't resolve service '%s'", unit);
+        if (!unit || !action)
                 return FALSE;
-        }
-        gchar *argv[] = { service, "-U", action, NULL };
+
+        g_autofree char *cmd = g_strdup_printf("/etc/init.d/%s %s", unit, action);
+        gchar *argv[] = { "/bin/sh", "-c", cmd, NULL };
+
         gboolean res = async_run_cmd(argv, error);
+        if (!res)
+                g_warning("Failed to run unit %s %s: %s", unit, action,
+                          error ? (*error)->message : "(no message)");
         return res;
 }
 
 static gboolean
-openrc_start_unit (const char       *unit,
-                   GError          **error)
+sysvinit_start_unit (const char *unit,
+                     GError    **error)
 {
-        return openrc_unit_action (unit, "start", error);
+        return sysvinit_unit_action(unit, "start", error);
 }
 
 static gboolean
-openrc_stop_unit (const char       *unit,
-                  GError          **error)
+sysvinit_stop_unit (const char *unit,
+                    GError    **error)
 {
-        return openrc_unit_action (unit, "stop", error);
+        return sysvinit_unit_action(unit, "stop", error);
 }
+
+/* --------------------------------------------------------------------------- */
 
 static gboolean
 leader_term_or_int_signal_cb (gpointer data)
@@ -149,7 +158,8 @@ monitor_hangup_cb (int          fd,
                                             NULL,
                                             &error);
         if (!unit) {
-                g_warning ("Could not get unit for graphical-session-pre.target: %s", error->message);
+                g_warning ("Could not get unit for graphical-session-pre.target: %s",
+                           error->message);
                 g_main_loop_quit (ctx->loop);
                 return G_SOURCE_REMOVE;
         }
@@ -165,7 +175,8 @@ monitor_hangup_cb (int          fd,
                                        NULL,
                                        &error);
         if (!proxy) {
-                g_warning ("Could not get proxy for graphical-session-pre.target unit: %s", error->message);
+                g_warning ("Could not get proxy for graphical-session-pre.target unit: %s",
+                           error->message);
                 g_main_loop_quit (ctx->loop);
                 return G_SOURCE_REMOVE;
         }
@@ -207,96 +218,37 @@ debug_logger (gchar const *log_domain,
         syslog (LOG_INFO, "%s", message);
 }
 
-/**
- * This is the session leader, i.e. it is the only process that's not managed
- * by the systemd user instance. This process is the one executed by GDM, and
- * it is part of the session scope in the system systemd instance. This process
- * works in conjunction with a service running within the user's service manager
- * (i.e. `gnome-session-monitor.service`) to implement the following:
- *
- * - When asked to shut down cleanly (i.e. via SIGTERM), the leader needs to
- *   bring down the session
- * - The leader needs to quit right after the session shuts down
- * - If the leader shuts down uncleanly, the session needs to shut down as well.
- *
- * This is achieved by opening a named FIFO in a well known location. If this
- * process receives SIGTERM or SIGINT then it will write a single byte, causing
- * the monitor service to signal STOPPING=1 to systemd. This triggers a clean
- * shutdown, solving the first item. To handle unclean shutdowns, we also wait
- * for EOF/HUP on both sides and quit if that signal is received.
- *
- * As an example, a shutdown might look as follows:
- *
- * - session-X.scope for user is stopped
- * - Leader process receives SIGTERM
- * - Leader sends single byte
- * - Monitor process receives byte and signals STOPPING=1
- * - Systemd user instance starts session teardown
- * - The last job that runs during session teardown is a stop job for the
- *   monitor process.
- * - Monitor process quits, closing FD in the process
- * - Leader process receives HUP and quits
- * - GDM sees the leader quit and cleans up its state in response.
- *
- * The result is that the session is stopped cleanly.
- */
 int
 main (int argc, char **argv)
 {
-        // Hook into syslog, as on an openrc system it's probably more convenient
         g_log_set_default_handler(debug_logger, NULL);
         g_autoptr (GError) error = NULL;
         g_auto (Leader) ctx = { .fifo_fd = -1 };
         const char *session_name = NULL;
         const char *debug_string = NULL;
-        g_autofree char *target = NULL;
         g_autofree char *fifo_path = NULL;
         g_autofree char *home_dir = NULL;
         g_autofree char *config_dir = NULL;
         struct stat statbuf;
-        
+
         if (argc < 2)
             g_error ("No session name was specified");
         session_name = argv[1];
-        
-        // probably not rely on this
+
         char const *user = g_getenv("USER");
         if (!user)
-                user = "gdm-greeter"; // :/
+                user = "gdm-greeter";
+
         g_info("User is: %s", user);
-        // strncmp because we also have gdm-greeter-{2,3,4,...}
         if (strncmp(user, "gdm-greeter", sizeof("gdm-greeter")) == 0)
         {
                 home_dir = g_strdup_printf("/var/lib/%s", user);
-
-                // Need to hijack the home to point to /var/lib because /var/run/... gets nuked on each gdm start
                 config_dir = g_strdup_printf("%s/.config", home_dir);
                 g_setenv("XDG_CONFIG_HOME", config_dir, TRUE);
                 g_setenv("HOME", home_dir, TRUE);
         }
         else
-                g_warning("The gdm-greeter-{1,2,3,4} user wasn't found. Expect stuff to break.")
-        
-        // Finally, let's get started
-        rc_set_user();
-        
-        char const *session_type = g_getenv("XDG_SESSION_TYPE");
-        char const *home         = g_getenv("HOME");
-        g_info("XDG_RUNTIME_DIR: %s", g_getenv("XDG_RUNTIME_DIR"));
-        
-        // TODO what about custom XDG config directory?
-        g_autofree char *gnome_runlevel_dir = g_strdup_printf("%s/.config/rc/runlevels/gnome-session", home);
-        if (!g_mkdir_with_parents(gnome_runlevel_dir, 0755))
-                g_debug("Directory exists. OK");
-
-        g_debug("runlevel dir: %s", gnome_runlevel_dir);
-
-        debug_string = g_getenv ("GNOME_SESSION_DEBUG");
-        if (debug_string != NULL)
-                g_log_set_debug_enabled (atoi (debug_string) == 1);
-        else
-                g_log_set_debug_enabled(TRUE);
-        g_debug("Hi! from leader-openrc.");
+                g_warning("The gdm-greeter-{1,2,3,4} user wasn't found. Expect stuff to break.");
 
         ctx.loop = g_main_loop_new (NULL, TRUE);
 
@@ -304,42 +256,10 @@ main (int argc, char **argv)
         if (ctx.session_bus == NULL)
                 g_error ("Failed to obtain session bus: %s", error->message);
 
-        /* XDG_SESSION_TYPE from the console is TTY which isn't a service and doesn't make
-            too much sense anyway */
+        const char *session_type = g_getenv("XDG_SESSION_TYPE");
         if (session_type && strcmp(session_type, "tty") == 0)
-                session_type = "wayland"; 
-        target = g_strdup_printf ("gnome-session-%s.%s",
-                                  session_type ? session_type : "wayland", session_name);
+                session_type = "wayland";
 
-        RC_SERVICE state = rc_service_state(target);
-        switch (state)
-        {
-        case RC_SERVICE_STARTED:
-        case RC_SERVICE_FAILED:
-                g_error("Service manager is already running!");
-                break;
-        case RC_SERVICE_STOPPED:
-                break;
-        default:
-                g_debug("Service in state: %d", state);
-        }
-        
-        if (!rc_runlevel_stack("gnome-session", "default"))
-                g_info("Couldn't set runlevel stack");
-        if (!rc_runlevel_exists("gnome-session"))
-                g_info("No runlevel \"gnome-session\" seen!"); // next function will fail now, but librc error reporting sucks so we check this specifically
-        if (!rc_service_add("gnome-session", target))
-        {
-                g_info("Couldn't add service to gnome-session runlevel: %s", strerror(errno));
-        }
-
-        g_message ("Starting GNOME session target: %s", target);
-
-        // No way that i'm aware of to enter a user runlevel from librc :/
-        gchar *rl_argv[] = { "/usr/bin/openrc", "-U", "gnome-session", NULL };
-        if (!async_run_cmd(rl_argv, &error))
-                g_error("Failed to start unit %s: %s", target, error ? error->message : "(no message)");
-        
         fifo_path = g_build_filename (g_get_user_runtime_dir (),
                                       "gnome-session-leader-fifo",
                                       NULL);
@@ -348,11 +268,11 @@ main (int argc, char **argv)
 
         ctx.fifo_fd = g_open (fifo_path, O_WRONLY | O_CLOEXEC, 0666);
         if (ctx.fifo_fd < 0)
-                g_error ("Failed to watch openrc session: open failed: %m");
+                g_error ("Failed to watch session: open failed: %m");
         if (fstat (ctx.fifo_fd, &statbuf) < 0)
-                g_error ("Failed to watch openrc session: fstat failed: %m");
+                g_error ("Failed to watch session: fstat failed: %m");
         else if (!(statbuf.st_mode & S_IFIFO))
-                g_error ("Failed to watch openrc session: FD is not a FIFO");
+                g_error ("Failed to watch session: FD is not a FIFO");
 
         g_unix_fd_add (ctx.fifo_fd, G_IO_HUP, (GUnixFDSourceFunc) monitor_hangup_cb, &ctx);
         g_unix_signal_add (SIGHUP, leader_term_or_int_signal_cb, &ctx);
