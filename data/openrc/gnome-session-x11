@@ -1,19 +1,83 @@
-#!/sbin/openrc-run
+#!/bin/sh
+#
+# gnome-session-x11   GNOME Session (X11)
+#
+# chkconfig: 3 90 10
+# description: GNOME Session (X11)
+# pidfile: /run/user/<uid>/gnome-session-x11.pid
 
-description="GNOME Session (x11)"
+### BEGIN INIT INFO
+# Provides: gnome-session-x11
+# Required-Start: dbus gnome-shell-x11 gnome-settings-daemon-x11 gnome-session-dbus gnome-session-init gnome-session-monitor
+# Required-Stop: gnome-session-monitor gnome-session-init gnome-session-dbus
+# Default-Start: 3
+# Default-Stop: 0 1 6
+# Short-Description: GNOME Session (X11)
+### END INIT INFO
 
-gs_x11_session="${RC_SVCNAME#*.}"
+GNOME_SESSION_EXEC="/usr/bin/gnome-session"
+PIDFILE="${XDG_RUNTIME_DIR}/gnome-session-x11.pid"
 
-depend() {
-	need dbus
-	if [ "${gs_x11_session}" = "gnome-login" ]; then
-		need gnome-shell-x11.gnome-login
-	else
-		need gnome-shell-x11
-	fi
-	# need "gnome-session.${gs_x11_session}"
-	need gnome-settings-daemon-x11
-	need "gnome-session-dbus.${gs_x11_session}"
-	need gnome-session-monitor
-	need gnome-session-init
+start() {
+    echo "Starting GNOME Session (X11)..."
+
+    if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+        echo "Already running."
+        return 0
+    fi
+
+    # Start dependencies first (simplified)
+    for svc in dbus gnome-shell-x11 gnome-settings-daemon-x11 \
+               gnome-session-dbus gnome-session-init gnome-session-monitor; do
+        if [ -x "/etc/rc.d/$svc" ]; then
+            /etc/rc.d/$svc start
+        fi
+    done
+
+    # Start GNOME session
+    "${GNOME_SESSION_EXEC}" --session=x11 &
+    echo $! > "$PIDFILE"
+    echo "GNOME Session (X11) started with PID $(cat "$PIDFILE")"
 }
+
+stop() {
+    echo "Stopping GNOME Session (X11)..."
+    if [ -f "$PIDFILE" ]; then
+        PID=$(cat "$PIDFILE")
+        kill "$PID" 2>/dev/null
+        rm -f "$PIDFILE"
+    fi
+
+    # Stop dependencies (reverse order)
+    for svc in gnome-session-monitor gnome-session-init gnome-session-dbus \
+               gnome-settings-daemon-x11 gnome-shell-x11 dbus; do
+        if [ -x "/etc/rc.d/$svc" ]; then
+            /etc/rc.d/$svc stop
+        fi
+    done
+}
+
+status() {
+    if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+        echo "GNOME Session (X11) running with PID $(cat "$PIDFILE")"
+        return 0
+    else
+        echo "GNOME Session (X11) is not running."
+        return 3
+    fi
+}
+
+restart() {
+    stop
+    start
+}
+
+case "$1" in
+    start)   start ;;
+    stop)    stop ;;
+    restart) restart ;;
+    status)  status ;;
+    *)       echo "Usage: $0 {start|stop|restart|status}" ; exit 1 ;;
+esac
+
+exit 0
