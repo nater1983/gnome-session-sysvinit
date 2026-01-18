@@ -130,7 +130,7 @@ else
   foreach gsd : openrc_gsd
     install_symlink(
       gsd,
-      install_dir: '/etc/user/init.d',
+      install_dir: '/etc/gnome',
       pointing_to: 'gsd'
     )
   endforeach
@@ -164,7 +164,7 @@ else
   
   install_data(
     mapped_target,
-    install_dir: '/etc/user/init.d',
+    install_dir: '/etc/gnome',
     rename: mapped_target_rename
   )
 
