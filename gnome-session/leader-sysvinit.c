@@ -63,35 +63,38 @@ async_run_cmd (gchar **argv, GError **error)
 /* -------------------- SysVinit-compatible unit handling -------------------- */
 
 static gboolean
-sysvinit_unit_action (const char *unit,
-                      const char *action,
-                      GError    **error)
+sysvinit_run_unit(const char *unit, GError **error)
 {
-        if (!unit || !action)
-                return FALSE;
+    if (!unit)
+        return FALSE;
 
-        g_autofree char *cmd = g_strdup_printf("/etc/xdg/gnome/%s %s", unit, action);
-        gchar *argv[] = { "/bin/sh", "-c", cmd, NULL };
+    /* Build the command: just call the wrapper, no start/stop needed */
+    g_autofree char *cmd = g_strdup_printf("/etc/xdg/gnome/%s", unit);
+    gchar *argv[] = { "/bin/sh", "-c", cmd, NULL };
 
-        gboolean res = async_run_cmd(argv, error);
-        if (!res)
-                g_warning("Failed to run unit %s %s: %s", unit, action,
-                          error ? (*error)->message : "(no message)");
-        return res;
+    gboolean res = async_run_cmd(argv, error);
+    if (!res)
+        g_warning("Failed to run unit %s: %s",
+                  unit,
+                  error && *error ? (*error)->message : "(no message)");
+
+    return res;
+}
+
+/* Public API helpers for compatibility */
+
+static gboolean
+sysvinit_start_unit(const char *unit, GError **error)
+{
+    return sysvinit_run_unit(unit, error);
 }
 
 static gboolean
-sysvinit_start_unit (const char *unit,
-                     GError    **error)
+sysvinit_stop_unit(const char *unit, GError **error)
 {
-        return sysvinit_unit_action(unit, "start", error);
-}
-
-static gboolean
-sysvinit_stop_unit (const char *unit,
-                    GError    **error)
-{
-        return sysvinit_unit_action(unit, "stop", error);
+    /* No actual stop needed; plugins manage themselves via PID */
+    g_message("SysVinit stop requested for %s — ignored (plugin runs automatically)", unit);
+    return TRUE;
 }
 
 /* --------------------------------------------------------------------------- */
