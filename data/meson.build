@@ -123,14 +123,14 @@ else
   # TODO installs unneeded duplicates since we can't symlink due to that OpenRC bug
   install_data(
     openrc_target,
-    install_dir: '/etc/user/init.d'
+    install_dir: '/etc/xdg/gnome'
   )
   
   # Create symlinks of gsd daemons
   foreach gsd : openrc_gsd
     install_symlink(
       gsd,
-      install_dir: '/etc/gnome',
+      install_dir: '/etc/xdg/gnome',
       pointing_to: 'gsd'
     )
   endforeach
@@ -152,19 +152,11 @@ else
       mapped_target += 'openrc/' + target
       mapped_target_rename += target + '.' + session
     endforeach
-    # HACK done above, it seems like symlinks break stuff with openrc
-    #foreach target : targets
-    #  install_symlink(
-    #    target + '--' + session,
-    #    install_dir: '/etc/user/init.d',
-    #    pointing_to: target
-    #  )
-    #endforeach
   endforeach
   
   install_data(
     mapped_target,
-    install_dir: '/etc/gnome',
+    install_dir: '/etc/xdg/gnome',
     rename: mapped_target_rename
   )
 
