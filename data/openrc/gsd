@@ -1,63 +1,37 @@
 #!/bin/sh
 #
-# Generic daemon template for SysVinit
-#
-# chkconfig: 3 90 10
-# description: Generic daemon for ${RC_SVCNAME}
-# pidfile: /run/user/<uid>/${RC_SVCNAME}.pid
+# SysVinit wrapper for GNOME Settings Daemon plugins
+# Each symlink runs its corresponding plugin automatically
 
-### BEGIN INIT INFO
-# Provides: ${RC_SVCNAME}
-# Required-Start: dbus
-# Required-Stop:
-# Default-Start: 3
-# Default-Stop: 0 1 6
-# Short-Description: ${RC_SVCNAME} daemon
-### END INIT INFO
+# Detect plugin name from symlink
+RC_SVCNAME=$(basename "$0")
 
-DAEMON="/usr/libexec/${RC_SVCNAME}"
+# User runtime directory for PID files
+XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}
 PIDFILE="${XDG_RUNTIME_DIR}/${RC_SVCNAME}.pid"
-ARGS=""
 
-start() {
-    echo "Starting ${RC_SVCNAME}..."
-    if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
-        echo "${RC_SVCNAME} already running with PID $(cat "$PIDFILE")"
-        return 0
-    fi
+# Path to the actual plugin executable
+DAEMON="/usr/libexec/${RC_SVCNAME}"
 
-    "$DAEMON" $ARGS &
-    echo $! > "$PIDFILE"
-    echo "${RC_SVCNAME} started with PID $(cat "$PIDFILE")"
-}
+# Check if the plugin exists
+if [ ! -x "$DAEMON" ]; then
+    echo "Executable $DAEMON not found!"
+    exit 1
+fi
 
-stop() {
-    echo "Stopping ${RC_SVCNAME}..."
-    if [ -f "$PIDFILE" ]; then
-        kill "$(cat "$PIDFILE")" 2>/dev/null
-        rm -f "$PIDFILE"
-        echo "${RC_SVCNAME} stopped"
-    else
-        echo "${RC_SVCNAME} not running"
-    fi
-}
+# If already running, do nothing
+if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+    echo "${RC_SVCNAME} already running with PID $(cat "$PIDFILE")"
+    exit 0
+fi
 
-status() {
-    if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
-        echo "${RC_SVCNAME} running with PID $(cat "$PIDFILE")"
-        return 0
-    else
-        echo "${RC_SVCNAME} is not running"
-        return 3
-    fi
-}
+# Ensure runtime dir exists
+mkdir -p "$(dirname "$PIDFILE")"
 
-case "$1" in
-    start)   start ;;
-    stop)    stop ;;
-    restart) stop; start ;;
-    status)  status ;;
-    *)       echo "Usage: $0 {start|stop|restart|status}" ; exit 1 ;;
-esac
+# Start the plugin in the background
+"$DAEMON" &
+PID=$!
+echo $PID > "$PIDFILE"
+echo "${RC_SVCNAME} started with PID $PID"
 
 exit 0
