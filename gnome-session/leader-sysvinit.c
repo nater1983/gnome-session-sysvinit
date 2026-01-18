@@ -70,7 +70,7 @@ sysvinit_unit_action (const char *unit,
         if (!unit || !action)
                 return FALSE;
 
-        g_autofree char *cmd = g_strdup_printf("/etc/gnome/%s %s", unit, action);
+        g_autofree char *cmd = g_strdup_printf("/etc/xdg/gnome/%s %s", unit, action);
         gchar *argv[] = { "/bin/sh", "-c", cmd, NULL };
 
         gboolean res = async_run_cmd(argv, error);
