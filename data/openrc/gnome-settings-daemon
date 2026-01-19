@@ -16,7 +16,7 @@
 ### END INIT INFO
 
 PIDFILE="${XDG_RUNTIME_DIR}/gnome-settings-daemon.pid"
-GSDS="gsd-a11y-settings gsd-color gsd-datetime gsd-housekeeping gsd-keyboard gsd-media-keys gsd-power gsd-print-notifications gsd-rfkill gsd-screensaver-proxy gsd-sharing gsd-sound gsd-usb-protection"
+GSDS="gsd-a11y-settings gsd-color gsd-datetime gsd-housekeeping gsd-keyboard gsd-media-keys gsd-power gsd-print-notifications gsd-rfkill gsd-screensaver-proxy gsd-sharing gsd-sound gsd-usb-protection gsd-xsettings "
 
 start() {
     echo "Starting GNOME Settings Daemon..."
@@ -28,7 +28,7 @@ start() {
 
     for gsd in $GSDS; do
         if command -v "$gsd" >/dev/null 2>&1; then
-            "$gsd" &
+            "/etc/xdg/gnome/$gsd" &
         fi
     done
 
