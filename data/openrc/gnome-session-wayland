@@ -50,9 +50,9 @@ stop() {
 
     # Stop dependencies (reverse order)
     for svc in gnome-session-monitor gnome-session-init gnome-session-dbus \
-               gnome-settings-daemon-wayland gnome-shell-wayland dbus; do
-        if [ -x "/etc/rc.d/$svc" ]; then
-            /etc/rc.d/$svc stop
+               gnome-settings-daemon-wayland gnome-shell-wayland; do
+        if [ -x "/etc/xdg/gnome/$svc" ]; then
+            /etc/xdg/gnome/$svc stop
         fi
     done
 }
