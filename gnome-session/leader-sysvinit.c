@@ -62,39 +62,47 @@ async_run_cmd (gchar **argv, GError **error)
 
 /* -------------------- SysVinit-compatible unit handling -------------------- */
 
+/**
+ * Run a SysVinit unit (GNOME Settings Daemon plugin) with the given action.
+ *
+ * Works with wrappers that:
+ * 1. Automatically start the plugin (action ignored), or
+ * 2. Respect start/stop arguments.
+ */
 static gboolean
-sysvinit_run_unit(const char *unit, GError **error)
+sysvinit_unit_action(const char *unit,
+                     const char *action,
+                     GError    **error)
 {
-    if (!unit)
+    if (!unit || !action)
         return FALSE;
 
-    /* Build the command: just call the wrapper, no start/stop needed */
-    g_autofree char *cmd = g_strdup_printf("/etc/xdg/gnome/%s", unit);
+    /* Build command: call the wrapper with the action */
+    g_autofree char *cmd = g_strdup_printf("/etc/xdg/gnome/%s %s", unit, action);
     gchar *argv[] = { "/bin/sh", "-c", cmd, NULL };
 
+    /* Run asynchronously */
     gboolean res = async_run_cmd(argv, error);
     if (!res)
-        g_warning("Failed to run unit %s: %s",
+        g_warning("Failed to run unit %s %s: %s",
                   unit,
+                  action,
                   error && *error ? (*error)->message : "(no message)");
 
     return res;
 }
 
-/* Public API helpers for compatibility */
-
+/* Wrapper helpers for start/stop */
 static gboolean
 sysvinit_start_unit(const char *unit, GError **error)
 {
-    return sysvinit_run_unit(unit, error);
+    return sysvinit_unit_action(unit, "start", error);
 }
 
 static gboolean
 sysvinit_stop_unit(const char *unit, GError **error)
 {
-    /* No actual stop needed; plugins manage themselves via PID */
-    g_message("SysVinit stop requested for %s — ignored (plugin runs automatically)", unit);
-    return TRUE;
+    return sysvinit_unit_action(unit, "stop", error);
 }
 
 /* --------------------------------------------------------------------------- */
