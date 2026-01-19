@@ -35,7 +35,7 @@ start() {
     fi
 
     # Start dependencies manually (approximation of OpenRC `need`)
-    for svc in dbus gnome-settings-daemon "gnome-session-dbus.${GNOME_SESSION}" gnome-session-monitor gnome-session-init; do
+    for svc in gnome-settings-daemon "gnome-session-dbus.${GNOME_SESSION}" gnome-session-monitor gnome-session-init; do
         if [ -x "/etc/xdg/gnome/$svc" ]; then
             echo "Starting dependency $svc..." | logger
             /etc/xdg/gnome/$svc start
