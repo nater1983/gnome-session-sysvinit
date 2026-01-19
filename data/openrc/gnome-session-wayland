@@ -27,7 +27,7 @@ start() {
     fi
 
     # Start dependencies first (simplified)
-    for svc in dbus gnome-shell-wayland gnome-settings-daemon-wayland \
+    for svc in gnome-shell-wayland gnome-settings-daemon-wayland \
                gnome-session-dbus gnome-session-init gnome-session-monitor; do
         if [ -x "/etc/xdg/gnome/$svc" ]; then
             /etc/xdg/gnome/$svc start
